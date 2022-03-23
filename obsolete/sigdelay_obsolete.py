@@ -186,12 +186,12 @@ def phase_slope(freq, signal_1_fx, signal_2_fx, calibration = []):
         plt.subplot(2, 2, 1)
         plt.title("DFT")
         plt.xlabel("Frequency (Hz)")
-        plt.ylabel("Amplitude")
+        plt.ylabel("Proximal Signal\nAmplitude")
         plt.plot(freq, abs(signal_1_fx))
         
         plt.subplot(2, 2, 3)
         plt.xlabel("Frequency (Hz)")
-        plt.ylabel("Amplitude")
+        plt.ylabel("Distal Signal\nAmplitude")
         plt.plot(freq, abs(signal_2_fx))
         
         plt.subplot(1, 2, 2)

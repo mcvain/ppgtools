@@ -1,18 +1,35 @@
-from openpyxl import workbook, load_workbook
+from openpyxl import Workbook, load_workbook
 import csv
 import os
 import numpy as np
 from ppgtools.biosignal import BioSignal
+import xlrd
+import copy
 
 class EventMarker:
     def __init__ (self, t, label):
         self.t = t
         self.label = label
+    def __repr__(self):
+        return str(self.t) + ": " + self.label
+    def trim(markers, start_time, end_time):
+        if start_time < 0:
+            raise ValueError("Start time must be non-negative")
+        out = []
+        for e in markers:
+            if start_time <= e.t <= end_time:
+                out.append(EventMarker(e.t - start_time, e.label))
+        
+        return out      
     def remove_connection_events(markers):
         output = []
+        
+        non_con = 0
         for e in markers:
             if (not e.label.startswith("Device disconnected at")) and not (e.label.startswith("Device reconnected at")):
                 output.append(e)
+                print(str(non_con) + ": " + str(e.label))
+                non_con += 1
                 
         return output
 
@@ -332,84 +349,159 @@ def import_and_convert_CSV(loc, signal_settings, file_name = ''):
     
     return out
 
-
-def importRespiratoryData(loc):
+def importSD(loc, endian = "little"):
     '''
-    Function to import respiratory data from USAARL (biopac?)
+    Function to load in data from old BIN files stored on SD card.
 
     Parameters
     ----------
-    loc : string
-        File location.
+    loc : String
+        File name and location.
+    endian : String, optional
+        Identifier for what endian the data is in. The default is "little".
 
     Returns
     -------
-    signals : array_like
-        Three channel respiratory data.
+    dist_data_complete : array_like
+        Array of arrays of distal data.
+    prox_data_complete : array_like
+        Array of arrays of proximal data.
+    lf_data_complete : array_like
+        Array of arrays of the raw phototransistor signal.
 
     '''
-    rsp = BioSignal(0, "RSP", 4, 1000, 32, True, False)
-    eda = BioSignal(0, "EDA", 4, 1000, 32, True, False)
-    ecg = BioSignal(0, "ECG", 4, 1000, 32, True, False)
     
-    x = []
-    y = []
-    z = []
     
-    loc += ".csv"
+    loc += ".bin"
     
-    with open(loc, newline='') as f:
-        reader = csv.reader(f)
-        data = np.array(list(reader))
+    try:    
+        file = open(loc, "rb")        
+    except IOError:
+        print("Could not find file \"" + loc + "\"")
         
-    for i in range (11, len(data)):
-        cur_line = data[i][0].split("\t")
-        x.append(float(cur_line[1]))
-        y.append(float(cur_line[2]))
-        z.append(float(cur_line[3]))
+    file_size = os.path.getsize(loc)
+    print("File \'" + str(loc) + "\' size: " + str(file_size / 1000) + " kB")
+        
+    byte = file.read(1)
+    n = 0
     
-    rsp.data = x
-    eda.data = y
-    ecg.data = z
+    sensor_data = 0
+    dist_data_complete = []
+    prox_data_complete = []
+    lf_data_complete = []
     
-    print("Sucessfully loaded file")
+    prox_data = []
+    dist_data = []
+    lf_data = []
     
-    return [rsp, eda, ecg]
+    total_bytes_read = 0
+    last_percent_written = -10
+    
+    while byte:
+        #First byte   
+        if n % 2 == 0:
+            sensor_data = byte
+        else:
+            sensor_data = int.from_bytes(sensor_data + byte, endian)
+            #print(sensor_data)            
+            if sensor_data == 0xFFFF:
+                #A new boot
+                if(len(dist_data) != 0):
+                    dist_data_complete.append(dist_data)
+                    prox_data_complete.append(prox_data)
+                    lf_data_complete.append(lf_data)
+                    dist_data = []
+                    prox_data = []
+                    lf_data = []
+                n = -1
+                
+            else:
+                if sensor_data & 0xFC00 == 0x400:
+                    dist_data.append(sensor_data & 0x3FF)
+                elif sensor_data & 0xFC00 == 0x800:
+                    lf_data.append((sensor_data & 0x3FF))
+                else:
+                    prox_data.append(sensor_data & 0x3FF)
+                
+        #sys.stdout.write("-")
+        #sys.stdout.flush()
+        n += 1
+        total_bytes_read += 1
+        
+        percent_complete = total_bytes_read / file_size * 100
+        
+        if(int(percent_complete) % 10 == 0 and int(percent_complete) != last_percent_written):
+            print(str(int(percent_complete)) + "% complete")
+            last_percent_written = int(percent_complete)
+        
+        byte = file.read(1)
+    
+    #sys.stdout.write("]\n")
+    
+    file.close()
+        
+    prox_data_complete.append(prox_data)
+    dist_data_complete.append(dist_data)
+    lf_data_complete.append(lf_data)
+    
+    print("")
+    print(str(len(dist_data_complete)) + " datasets found in " + loc + "\n")
+    
+    return dist_data_complete, prox_data_complete, lf_data_complete    
+
+def importWellueO2Data(path, loc = 'all'):        
+    spo2 = []
+    hr = []
+    motion = []
+    
+    if loc == 'all':
+        onlyfiles = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+        print("O2 files found: ")
+        for i in range(0, len(onlyfiles)):
+            print(f"{i}: {onlyfiles[i]}")
+        locs = onlyfiles
+    else:
+        locs = [loc+".csv"]
+    
+    for l in locs:
+        with open(path + '\\' + l, newline='', errors = 'ignore') as f:
+            reader = csv.reader(f)
+            data = np.array(list(reader))
+            
+        for i in range (1, len(data)):        
+            spo2.append(float(data[i][1]))
+            hr.append(float(data[i][2]))
+            motion.append(float(data[i][3]))
+    
+    return list((spo2, hr, motion))
 
 def importBiopacEventMarkers(loc):
-    loc += ".csv"
+    book = xlrd.open_workbook(loc)
+    sh = book.sheet_by_index(0)
+    
     markers = []
     beats = []
     ibi = []
-    
-    with open(loc, newline='') as f:
-        reader = csv.reader(f)
-        data = np.array(list(reader))
         
-    for i in range (3, len(data)):
-        event = data[i][2]
+    for row in range (2, sh.nrows):        
+        t = sh.cell(row, 1).value
         
-        t = data[i][1]
-        t_c = t
-        t = t.split(" ")
-        t_sec = 0
-        try:
-            if(t[1] == "sec"):
-                t_sec = float(t[0])
-            elif (t[1] == "min"):
-                t_sec = float(t[0]) * 60    
-            else:
-                print(t[1])
-        except IndexError:
-            print(t_c)
+        if t[-4:] != ' sec':
+            print(t)
+        else:
+            t = float(t[0:-4])
         
+        event = sh.cell(row, 2).value
+        
+        n = 0
         if event == "User Type 1":
-            markers.append(EventMarker(t_sec, data[i][4]))
+            print(f"{len(markers)}: {sh.cell(row, 4).value}") 
+            markers.append(EventMarker(t, sh.cell(row, 4).value))
         elif event == "Normal Beat":
-            beats.append(t_sec)
+            beats.append(t)
         elif event == "Premature Ventricular Contraction":
-            beats.append(t_sec)
-            markers.append(EventMarker(t_sec, "PVC"))
+            beats.append(t)
+            markers.append(EventMarker(t, "PVC"))
         else:
             print(event) 
             
@@ -417,9 +509,43 @@ def importBiopacEventMarkers(loc):
     markers = np.asarray(markers)
     ibi = np.diff(beats)
     hr = 60 / ibi
-    
-              
-    return beats, ibi, hr, markers
+                  
+    #Remove the last beat since there is 1 less IBI than beats
+    return beats[0:-1], ibi, hr, markers
+
+def importBiopacRespiratoryData(loc):
+    breaths = []
+
+    book = xlrd.open_workbook(loc)
+    sh = book.sheet_by_index(0)
+        
+    for row in range (2, sh.nrows):        
+        t = sh.cell(row, 1).value
+        
+        if t[-4:] != ' sec':
+            print(t)
+        else:
+            t = float(t[0:-4])
+        
+        event = sh.cell(row, 2).value
+        
+        if event == "Inspire Start":
+            breaths.append(t)
+        elif event == "Expire Start":
+            pass
+        elif event == "Recovery":
+            pass
+        else:
+            pass
+            #print(event) 
+            
+    breaths = np.asarray(breaths)
+    ibi = np.diff(breaths)
+    rr = 60 / ibi
+                  
+    #Remove the last beat since there is 1 less IBI than beats
+    return breaths[0:-1], ibi, rr
+        
 
 def importFinapres(loc):
     '''
