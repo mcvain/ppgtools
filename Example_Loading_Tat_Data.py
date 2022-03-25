@@ -48,6 +48,7 @@ for i in range(0, len(signals)):
     markers_pad = signals[i].pad_disconnect_events(markers, method = "hold")
 
 #%% Plot data
+plt.close('all')
 sigplot.plot_biosignals(signals[0:8], markers)
 
 #Plotting just a single channel
@@ -57,8 +58,8 @@ plt.figure()
 signals[0].plot_stft()
 
 # You can access the time series data as a Numpy array as well
-ppg1_np_array = signals[0].data
-ppg1_t = np.linspace(0, len(ppg1_np_array) * signals[0].fs, len(ppg1_np_array))
+ppg1_np_array = signals[0].data #Retrieving the Biosignals' time series data as a Numpy array
+ppg1_t = np.linspace(0, len(ppg1_np_array) / signals[0].fs, len(ppg1_np_array))
 plt.figure()
 plt.plot(ppg1_t, ppg1_np_array)
 plt.xlabel("t [s]")
