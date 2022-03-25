@@ -64,7 +64,6 @@ def downsample(inp, fs, tfs, aa = False):
     if(aa):
         inp_filt = filter_signal(inp_filt, 'lowpass', [tfs/2], fs)
     
-    
     modulus = int(fs / tfs)
     output = []
     for i in range (0, len(inp)):
@@ -105,7 +104,7 @@ The data after the change.
             output.append(0)
     
     output = np.asarray(output)
-    output = filter_signal(inp, 'lowpass', [fs/2], fs)
+    output = filter_signal(inp, fs, 'lowpass', [(fs/2)-0.1])
         
     return output        
  
@@ -253,7 +252,7 @@ def trim_signal(inp, fs, lower_bound = 0, upper_bound = 0):
     upper_bound = int(upper_bound * fs)        
     
     if upper_bound <= lower_bound or upper_bound >= len(inp):
-        upper_bound = len(signal)
+        upper_bound = len(inp)
     
     
     return inp[lower_bound : upper_bound]
