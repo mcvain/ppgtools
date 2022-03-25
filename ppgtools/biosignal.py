@@ -10,15 +10,15 @@ from ppgtools import sigpro, sigpeaks
 
 class BioSignal:   
     def __init__(self, index, name, bytes_per_point, fs, bit_resolution, signed, little_endian):
-        self.index = index
-        self.name = name
-        self.bytes_per_point = bytes_per_point
-        self.fs = fs
-        self.bit_resolution = bit_resolution
-        self.signed = signed
-        self.little_endian = little_endian
-        self.data = np.zeros(0)
-        self.units = "a.u."
+        self.index = index                                  
+        self.name = name                                    #Name of Biosignal
+        self.bytes_per_point = bytes_per_point              #How many bytes per data point
+        self.fs = fs                                        #Sample rate
+        self.bit_resolution = bit_resolution                #How many bits per point
+        self.signed = signed                                #Signed or unsigned
+        self.little_endian = little_endian                  #Big or little
+        self.data = np.zeros(0)                             #Time series data
+        self.units = "a.u."                                 #Used for plotting
         
     def getEndian(self):
         if self.little_endian:
