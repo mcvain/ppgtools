@@ -290,9 +290,7 @@ class BioSignal:
         y_point = 35#min(self.data)
         for e in markers:
             plt.annotate(e.label, [e.t, y_point], rotation = 'vertical', size = 12)
-            plt.axvline(e.t, c = 'red')
-            print(e.t)
-        
+            plt.axvline(e.t, c = 'red')        
         
         plt.title(self.name)
         

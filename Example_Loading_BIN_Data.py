@@ -18,24 +18,18 @@ from ppgtools import sigpro, sigimport, sigpeaks, sigplot, save, biometrics, sig
 
 #%% Load in files.
 path = r"Example data"
-filename = r"\ecg ppg sync 2"
+loc = r"\12_channel"           
             
-#Load in the data. This is a hashmap with the device name as the key and the 
-#BioSignal/event markers as the value.
-sessionData = sigimport.importTattooData(path, filename)
+#Load in the data. This will return a list of Biosignal objects, one for each
+#channel of data.
+signals_original = sigimport.importBIN(path + loc + loc)
 
-#%% Showing how to get signals from the session data
-#Data and markers from the first device (PPG Tattoo V3.2)
-ppgSignals = sessionData["PPG Tattoo v3.2"]["Data"]
-ppgMarkers = sessionData["PPG Tattoo v3.2"]["Markers"]
+#Load in event markers, if they exist.
+markers_original = sigimport.importEventMarkers(path + loc + loc)
 
-#Data and markers from the second device (Pneumonia_v2.0)
-ecgSignals = sessionData["Pneumonia_v2.0"]["Data"]
-ecgMarkers = sessionData["Pneumonia_v2.0"]["Markers"]
-
-#%% Example signal processing on the PPG signals
-signals = copy.deepcopy(ppgSignals)
-markers = copy.deepcopy(ppgMarkers)
+#%% Initial signal processing
+signals = copy.deepcopy(signals_original)
+markers = copy.deepcopy(markers_original)
 
 #Here are some examples of basic signal processing of Biosignals.
 
