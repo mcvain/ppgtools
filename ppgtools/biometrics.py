@@ -193,8 +193,8 @@ def calc_spo2(red, ir, peak_alg = 'adaptive'):
     
     #Find the peaks
     if peak_alg == 'adaptive':
-        red_mins_peaks = red.find_mins_and_peaks_adaptive_threshold(0.7, fc = [0.5, 4])
-        ir_mins_peaks = ir.find_mins_and_peaks_adaptive_threshold(0.7, fc = [0.5, 4])  
+        red_mins_peaks = red.find_mins_and_peaks_adaptive_threshold(0.9, fc = [0.5, 4])
+        ir_mins_peaks = ir.find_mins_and_peaks_adaptive_threshold(0.9, fc = [0.5, 4])  
         
         ir.plot(peaks = np.concatenate((ir_mins_peaks[0], ir_mins_peaks[1])))
         red.plot(peaks = np.concatenate((red_mins_peaks[0], red_mins_peaks[1])))

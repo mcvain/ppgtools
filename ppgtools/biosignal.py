@@ -275,10 +275,10 @@ class BioSignal:
         
         return output
         
-    def plot(self, markers = [], peaks = []):
+    def plot(self, markers = [], peaks = [], **kwargs):
         plt.figure()
         t = np.linspace(0, len(self.data) / self.fs, len(self.data))
-        plt.plot(t, self.data)
+        plt.plot(t, self.data, **kwargs)
         
         if len(peaks) > 0:
             plt.plot(t[peaks], self.data[peaks], 'r.')
@@ -457,3 +457,34 @@ class BioSignal:
         if len(peaks) == 0:
             peaks = self.find_peaks_adaptive_threshold(0.5)
         return sigpeaks.find_feet_sdm(self.data, peaks)
+    
+    def sync(self, markers):
+        last_sync_time = 0
+        last_sync_time_data = 0
+        sync_data = np.array([])
+        
+        for m in markers:
+            if "Sync time: " in m.label:
+                sync_time_data = m.t
+                sync_time = float(''.join(c for c in m.label if c.isdigit()))/1000   
+                sync_interval = sync_time - last_sync_time
+                expected_data_length = sync_time * self.fs
+                points_to_add = int(expected_data_length - len(sync_data))
+                
+                
+                start = int(last_sync_time_data * self.fs)
+                end = int(sync_time_data * self.fs)
+                sublist = self.data[start:end]
+                #print(str(m.t) + " " + str(sync_time))
+                print(str(points_to_add) + " " + str(len(sublist)) + " " + str(start) + " " + str(end))
+                print(len(self.data))
+                sublist = signal.resample(sublist, points_to_add)
+            
+                
+                sync_data = np.hstack((sync_data, sublist))
+                
+                m.t = sync_time
+                last_sync_time = sync_time
+                last_sync_time_data = sync_time_data
+            
+        self.data = sync_data

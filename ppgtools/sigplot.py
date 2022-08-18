@@ -34,6 +34,7 @@ def plot_biosignals(signals, event_markers = None, points_of_interest = None, in
         num_ax +=1
     
     fig, axs = plt.subplots(num_ax, 1, sharex = True)
+    fig.subplots_adjust(hspace=0)
     
     for i in range (0, len(signals)):
         t = np.linspace(0, len(signals[i].data) / signals[i].fs, len(signals[i].data))
@@ -43,10 +44,14 @@ def plot_biosignals(signals, event_markers = None, points_of_interest = None, in
         else:
             ax = axs
         
-        h = ax.set_ylabel(signals[i].units)  
-        #h.set_rotation(0)
+        #h = ax.set_ylabel(signals[i].name)  
+        
+        
         ax.plot(t, signals[i].data, c = colors[i % len(colors)])
-        ax.set_title(signals[i].name,  position=(0.025, 0.05), horizontalalignment='left')
+        ax.set_ylabel(signals[i].units)  
+        #ax.set_yticks([])
+        #ax.yaxis.set_label_coords(-0.1, 0.5)
+        ax.text(0.97,0.1, signals[i].name, horizontalalignment='right', transform=ax.transAxes)
             
         if event_markers != None:
             for j in range (0, len(event_markers)):

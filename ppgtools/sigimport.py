@@ -45,6 +45,30 @@ def checkPercent(total_bytes_read, file_size):
         print(str(int(percent_complete)) + "% complete")
         last_percent_written = int(percent_complete)      
 
+
+def importTattooData(directory, filename):
+    #Clean up path. Only use forward slashes
+    directory = directory.replace("\\", "/")
+    directory += "/" + filename
+    
+    devices = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))]
+    print (devices)
+    
+    sessionData = {}
+    
+    for d in devices:
+        data = importTAT(directory + "/" + d + "/" + filename + "_" + d)
+        markers = importEventMarkers(directory + "/" + d + "/" + filename + "_" + d)
+        deviceData = {"Data" : data, "Markers" : markers}
+        sessionData[d] = deviceData
+        
+    print("All tattoo files loaded. Data available from following devices: ")    
+    for d in sessionData.keys():
+        print(d)
+        
+    return sessionData
+        
+
 def importEventMarkers(loc):
     '''
     Function to load event markers from Pulse App
@@ -78,10 +102,122 @@ def importEventMarkers(loc):
     except FileNotFoundError:
         print("No event markers found")
         return []
-     
-           
+
+
+def importTAT(loc):
+    loc += ".tat"
+    
+    try:    
+        file = open(loc, "rb")        
+    except IOError:
+        print("Could not find file \"" + loc + "\"")
+        
+    file_size = os.path.getsize(loc)
+    print("File \'" + str(loc) + "\' size: " + str(file_size / 1000) + " kB")
+        
+    
+        
+    total_bytes_read = 0        
+    
+    i = 1
+    #Parse the header for signal information
+    byte = file.read(4)
+    header_bytes = int.from_bytes(byte, "big")
+    
+    #Check version number of file
+    byte = file.read(1)
+    print("TAT file version: " + str(int.from_bytes(byte, "big")))
+    
+    signals = []
+    print("\nReading file header (size: " + str(header_bytes) + " bytes) for signal information")
+    while i < header_bytes:
+        #Index, name length, name, bytes per point, fs, bit resolution, signed/unsigned
+        print()
+        byte = file.read(1)
+        index = int.from_bytes(byte, "big")
+        print("Index: " + str(index))
+        
+        byte = file.read(1)
+        name_len = int.from_bytes(byte, "big")
+        
+        byte = file.read(name_len)
+        name = byte.decode("utf-8")
+        print("Name: " +  name)
+        
+        byte = file.read(1)
+        bpp = int.from_bytes(byte, "big")
+        print("Bytes per point: " +  str(bpp))
+        
+        byte = file.read(4)
+        fs = int.from_bytes(byte, "big")
+        print("Sample rate: " +  str(fs))
+        
+        byte = file.read(1)
+        bit_res = int.from_bytes(byte, "big")
+        print("Bit resolution: " +  str(bit_res))
+        
+        byte = file.read(1)
+        signed = True#bool(int.from_bytes(byte, "big"))
+        print("Signed: " +  str(signed))
+        
+        byte = file.read(1)
+        little_endian = bool(int.from_bytes(byte, "big"))
+        print("Little Endian: " +  str(little_endian))
+        
+        i+= (10 + name_len)
+        
+        signals.append(BioSignal(index, name, bpp, fs, bit_res, signed, little_endian))
+    
+    total_bytes_read += header_bytes
+    checkPercent(total_bytes_read, file_size)
+    
+    #Get the order of which the signals are in
+    print("\nDetermining the package structure...")
+    byte = file.read(2)
+    order_bytes = int.from_bytes(byte, "big")
+    signal_order = []
+    i = 0
+    while i < order_bytes:
+        byte = file.read(1)
+        next_sig = int.from_bytes(byte, "big")
+        signal_order.append(next_sig)
+        print(str(next_sig))
+        i += 1
+    
+    total_bytes_read += order_bytes
+    checkPercent(total_bytes_read, file_size)
+    
+    #Parse the raw data   
+    print("\nParsing raw data...")  
+       
+    
+    data_buffer = [[] for i in range(len(signals))]
+    while True:
+        #Go through each signal
+        for j in signal_order:
+            bytes_to_read = signals[j].bytes_per_point
+            byte = file.read(bytes_to_read)
+            if (not byte):
+                file.close()
+                
+                #Convert python list to numpy array
+                for k in range (0, len(signals)):
+                    signals[k].data = np.asarray(data_buffer[k])
+               
+                print("Sucessfully loaded .tat file.\n")
+                return signals
+            
+            
+            data_buffer[j].append(int.from_bytes(byte, signals[j].getEndian(), signed = signals[j].signed))
+            #signals[j].data.append(int.from_bytes(byte, signals[j].getEndian(), signed = signals[j].signed))
+            
+    
+            total_bytes_read += bytes_to_read
+            checkPercent(total_bytes_read, file_size)  
+               
 def importBIN(loc):
     '''
+    DEPRECATION WARNING. Future tattoo files will use .tat format.
     Converts a Pulse App Bin file into a list of BioSignals
 
     Parameters
@@ -143,7 +279,7 @@ def importBIN(loc):
         print("Bit resolution: " +  str(bit_res))
         
         byte = file.read(1)
-        signed = bool(int.from_bytes(byte, "big"))
+        signed = True#bool(int.from_bytes(byte, "big"))
         print("Signed: " +  str(signed))
         
         byte = file.read(1)
@@ -200,7 +336,7 @@ def importBIN(loc):
             total_bytes_read += bytes_to_read
             checkPercent(total_bytes_read, file_size)
             
-def importCSV(loc, num_channels):
+def importCSV(loc, num_channels, starting_row = 0, starting_col = 0):
     '''
     Converts a CSV file into signals. 
 
@@ -224,21 +360,18 @@ def importCSV(loc, num_channels):
         reader = csv.reader(f)
         data = np.array(list(reader))
     
-    out = np.empty((num_channels, data.shape[0]))
-    print (data.shape[0])
-    print (out.shape)
+    out = np.empty((num_channels - starting_col, data.shape[0] - starting_row-1))
     
-    
-    for i in range (0, len(data)):
-        for j in range (0, num_channels):
-            #print(data[i][j])
+    for i in range (starting_row, len(data)-1):
+        for j in range (starting_col, num_channels):
+            print(data[i][j])
             try:
-                out[j, i] = (float(data[i][j]))
+                out[j - starting_col, i - starting_row] = (float(data[i][j]))
             except IndexError:
                 print("Index Error, i = " + str(i) + " j = " + str(j))
         
             
-    print("Sucessfully loaded file")
+    print("Sucessfully loaded .csv file.\n")
     
     return out
 
