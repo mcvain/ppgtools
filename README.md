@@ -2,8 +2,8 @@
 Python package for parsing and processing .bin data from Pulse
 
 **Data format**
-Pulse saves data in a .bin file. The .bin file starts off with a header that lists the relevant parameters of each channel of data, such as sample rate, bytes per point, etc. After the header, the .bin file contains 
-You can use the module "sigimport.importBIN(" to parse the .bin file. It will return a list of Biosignal objects.
+Pulse saves data in a .tat file. The .tat file starts off with a header that lists the relevant parameters of each channel of data, such as sample rate, bytes per point, etc. After the header, the .tat file contains 
+You can use the module "sigimport.importTAT(" to parse the .tat file. It will return a dict, with key-value pairs for each BLE device that was connected. Each dict value is another dict containing a list of Biosignal objects and the event markers for that particular BLE device.
 
 **Biosignal Object**
 The Biosignal object is just a data structure that packages the sensor time series data with important parameters such as its name, sample rate, and units. It also has some functions to manipulate the time series data, such as filtering, resampling, and trimming.
