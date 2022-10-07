@@ -81,7 +81,62 @@ class BioSignal:
             e.t += total_downtime
         
         return markers_updated
+    
+    
+    def pad_disconnect_events_new(self, markers, method = "hold"):
+        '''
+        Function to pad the data when the tattoo disconnected
+
+        Parameters
+        ----------
+        markers : array_like
+            Event markers containing disconnect and reconnect events.
+        method : {zero, hold}, optional
+            What the padded data should be. Zero fills with zeros, hold fills with last valid data.
+        Returns
+        -------
+        markers_updated : array_like
+            Event markers with updated timestamps.
+
+        '''
+        valid = {'zero', 'hold'}
+        if method not in valid:
+            raise ValueError("Method must be one of %r."%valid)
         
+        disconnect_time_data   = 0  #Timestamp of the disconnect, in the data
+        last_disconnect        = 0  #Timestamp of the disconnect, in unix (phone)
+        total_downtime         = 0  #Total amount of downtime, in seconds
+        
+        markers_updated = copy.deepcopy(markers)
+        
+        for e in markers_updated:
+            if "Packet interval" in e.label:
+                #Formatted in hr:mn:sc
+                reconnect_time = e.label[17:]
+
+                downtime_ms = float(reconnect_time)
+                total_downtime += downtime_ms/1000
+                
+                #Pad the signal.
+                pad = np.zeros(int((downtime_ms * self.fs) /1000))
+                # pad -= 1000
+                                
+                if method == 'hold':
+                    last_valid = self.data[int(disconnect_time_data * self.fs)]
+                    pad += last_valid
+                
+                self.data = np.insert(self.data, int(disconnect_time_data * self.fs), pad)
+                
+                
+            elif "disconnected" in e.label:
+                last_disconnect = e.label[-20:-9]
+                disconnect_time_data = e.t + total_downtime
+                
+            e.t += total_downtime
+        
+        return markers_updated
+    
+    
     def resample(self, tfs, aa = False, change_self = True):
         '''
         Resample the data to a new sampling rate using Fourier method.
