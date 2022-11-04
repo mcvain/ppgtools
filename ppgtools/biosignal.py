@@ -359,6 +359,7 @@ class BioSignal:
         plt.title('STFT Magnitude')
         plt.ylabel('Frequency [Hz]')
         plt.xlabel('Time [sec]')
+        plt.ylim([0, 60])
         plt.show()
         
     def convert_Si7050(self):
