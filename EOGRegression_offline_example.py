@@ -7,7 +7,6 @@ from matplotlib import pyplot as plt
 import matplotlib.animation as animation
 from scipy.stats import zscore
 from scipy.signal import butter, lfilter
-import time
 
 def butter_bandpass(lowcut, highcut, fs, order=5):
     return butter(order, [lowcut, highcut], fs=fs, btype='band')
@@ -148,36 +147,14 @@ train_epochs.average('all').plot(axes=ax[0:2, 0], spatial_colors=True, selectabl
 model_evoked = mne.preprocessing.EOGRegression(picks='eeg', picks_artifact='eog').fit(train_evoked)
 
 raw.plot(scalings=dict(eeg=20e-6, eog=150e-6), show=False, block=False, remove_dc=True, title="before (training)", highpass=0.3, lowpass=40, events=eog_events)
-
-# simulate onlineness
-cnt = 0 # starting sample
-corrected_data_array = np.zeros((6, training_data_array.shape[1]))
-window_size = 1 # apply unchanged weights every n samples 
-while cnt+window_size <= training_data_array.shape[1]: # at every sample, apply the regression 
-    incoming_data = training_data_array[:, cnt:cnt+window_size]
-    corrected_data = incoming_data.copy()
-    corrected_data[0:4] = incoming_data[0:4] - model_evoked.coef_ @ incoming_data[4:6]
-    # test_data_array[:, cnt:cnt+window_size] = corrected_data
-    # t = [x / eegSignals[0].fs for x in list(range(cnt, cnt+window_size))]
-    
-    corrected_data_array[0:, cnt:cnt+window_size] = corrected_data
-
-    cnt += window_size # sample
-
-raw_clean = mne.io.RawArray(corrected_data_array, mne.create_info(ch_names, eegSignals[0].fs, ch_types=ch_types))
-raw_clean.load_data()
-raw_clean.set_eeg_reference('average')
-raw_clean.set_montage(mne.channels.make_standard_montage("standard_1005"))
+raw_clean = model_evoked.apply(raw)
+raw_clean.plot(scalings=dict(eeg=20e-6, eog=150e-6), show=False, block=False, remove_dc=True, title="after (training)", highpass=0.3, lowpass=40, events=eog_events)
+mfig, ax = raw_custom_plot(raw, mfig, ax, [2, 0], times= [5,25], mean=False, events=eog_events)
+mfig, ax = raw_custom_plot(raw_clean, mfig, ax, [2, 1], times= [5,25], mean=False, events=eog_events)
 
 train_clean_evoked = mne.preprocessing.create_eog_epochs(raw_clean, baseline=(-1, -0.5), tmin=-1, tmax=0.5)
 train_clean_evoked.average('all').plot(axes=ax[0:2, 1], spatial_colors=True, selectable=False, show=False)
 
-mfig, ax = raw_custom_plot(raw, mfig, ax, [2, 0], times= [5, 25], mean=False, events=eog_events)
-mfig, ax = raw_custom_plot(raw_clean, mfig, ax, [2, 1], times= [5, 25], mean=False, events=eog_events)
-
-raw_clean.plot(scalings=dict(eeg=20e-6, eog=150e-6), show=False, block=False, remove_dc=True, title="after (training)", highpass=0.3, lowpass=40, events=eog_events)
-
-# Do the same for test set 
 raw = mne.io.RawArray(test_data_array, mne.create_info(ch_names, eegSignals[0].fs, ch_types=ch_types))
 raw.load_data()
 raw.set_eeg_reference('average')
@@ -190,44 +167,18 @@ test_evoked = mne.preprocessing.create_eog_epochs(raw, baseline=(-1, -0.5), tmin
 eog_events = mne.preprocessing.find_eog_events(raw, thresh=35e-6)
 test_evoked.average('all').plot(axes=ax[3:5, 0], spatial_colors=True, selectable=False, show=False)
 
-raw.plot(scalings=dict(eeg=20e-6, eog=150e-6), show=False, block=False, remove_dc=True, title="before (testing)", highpass=0.3, lowpass=40, events=eog_events)
+fig = raw.plot(scalings=dict(eeg=20e-6, eog=150e-6), show=False, block=False, remove_dc=True, title="before (testing)", highpass=0.3, lowpass=40, events=eog_events)
+raw_clean = model_evoked.apply(raw)
 
-# simulate onlineness
-cnt = 0 # starting sample
-corrected_data_array = np.zeros((6, test_data_array.shape[1]))
-window_size = 1 # apply unchanged weights every n samples 
-online_eval_times = [] 
-while cnt+window_size <= test_data_array.shape[1]: # at every sample, apply the regression 
-    start = time.time()
-    incoming_data = test_data_array[:, cnt:cnt+window_size]
-    corrected_data = incoming_data.copy()
-    corrected_data[0:4] = incoming_data[0:4] - model_evoked.coef_ @ incoming_data[4:6]
-
-    
-    corrected_data_array[0:, cnt:cnt+window_size] = corrected_data
-
-    cnt += window_size # sample
-    end = time.time()
-    online_eval_times.append(end - start)
-
-raw_clean = mne.io.RawArray(corrected_data_array, mne.create_info(ch_names, eegSignals[0].fs, ch_types=ch_types))
-raw_clean.load_data()
-raw_clean.set_eeg_reference('average')
-raw_clean.set_montage(mne.channels.make_standard_montage("standard_1005"))
-
-train_clean_evoked = mne.preprocessing.create_eog_epochs(raw_clean, baseline=(-1, -0.5), tmin=-1, tmax=0.5)
-train_clean_evoked.average('all').plot(axes=ax[3:5, 1], spatial_colors=True, selectable=False, show=False)
+test_clean_evoked = mne.preprocessing.create_eog_epochs(raw_clean, baseline=(-1, -0.5), tmin=-1, tmax=0.5)
+test_clean_evoked.average('all').plot(axes=ax[3:5, 1], spatial_colors=True, selectable=False, show=False)
 
 mfig, ax = raw_custom_plot(raw, mfig, ax, [5, 0], times= [398, 418], mean=False, events=eog_events)
 mfig, ax = raw_custom_plot(raw_clean, mfig, ax, [5, 1], times= [398, 418], mean=False, events=eog_events)
 
 mfig.show()
 
-print("average time taken to process one incoming sample: ", np.mean(online_eval_times), " seconds")
-
 fig = raw_clean.plot(scalings=dict(eeg=20e-6, eog=150e-6), show=True, block=True, remove_dc=True, title="after (testing)", highpass=0.3, lowpass=40, events=eog_events)
 
-# animation 
-# top: incoming / displayed data 
-# bottom: corrected / saved data 
-
+# mini-conclusion: doesn't work either. 
+# so I think EOGRegression strictly works on training data, and not on test data; especially if test data is recorded with a different configuration. 

@@ -7,7 +7,6 @@ from matplotlib import pyplot as plt
 import matplotlib.animation as animation
 from scipy.stats import zscore
 from scipy.signal import butter, lfilter
-import time
 
 def butter_bandpass(lowcut, highcut, fs, order=5):
     return butter(order, [lowcut, highcut], fs=fs, btype='band')
@@ -47,7 +46,7 @@ def raw_custom_plot(raw, fig, ax, ax_idxs, times, mean=False, events=[]):
     ax[ax_idxs[0], ax_idxs[1]].set_xlabel('Time (s)')
     ax[ax_idxs[0], ax_idxs[1]].set_xlim(times[0], times[-1])
 
-    ax[ax_idxs[0], ax_idxs[1]].set_ylim(-4e-05, 4e-05)
+    ax[ax_idxs[0], ax_idxs[1]].set_ylim(-5e-06, 5e-06)
     ax[ax_idxs[0], ax_idxs[1]].set_ylabel(u'Amplitude (\u03bcV)')
 
     events = mne.annotations_from_events(events, 250).onset
@@ -60,8 +59,8 @@ def raw_custom_plot(raw, fig, ax, ax_idxs, times, mean=False, events=[]):
 # Load in training file 
 path = r"C:/Users/mcvai/ppgtools/data/eeg/USAARL Feb 2023 Shipping"
 print(os.getcwd())
-# filename = r"Sat Feb 04 174357 CST 2023 board1_etat_artifacts_S1"
-filename = r"Fri Feb 03 174308 CST 2023 board1_gel_artifacts_S1"
+filename = r"Sat Feb 04 174357 CST 2023 board1_etat_artifacts_S1"
+# filename = r"Fri Feb 03 174308 CST 2023 board1_gel_artifacts_S1"
 # filename = r"Sat Feb 04 163920 CST 2023 board2_gel_artifacts_S1"
 
 sessionData = sigimport.importTattooData(path, filename)
@@ -105,8 +104,8 @@ training_data_array = training_data_array * 1.73846881 * pow(10, -8) # ADC_Value
 ch_types = ["eeg","eeg","eeg","eeg","eog","eog"]
 
 ## Test set  
-# filename = r"Sat Feb 04 174651 CST 2023 board1_etat_nback1_S1"
-filename = r"Fri Feb 03 172818 CST 2023 board1_gel_nback1_S1"
+filename = r"Sat Feb 04 174651 CST 2023 board1_etat_nback1_S1"
+# filename = r"Fri Feb 03 172818 CST 2023 board1_gel_nback1_S1"
 # filename = r"Fri Feb 03 174308 CST 2023 board1_gel_artifacts_S1"
 sessionData = sigimport.importTattooData(path, filename)
 
@@ -144,40 +143,21 @@ train_evoked = train_epochs.average('all')
 eog_events = mne.preprocessing.find_eog_events(raw, thresh=60e-6)
 train_epochs.average('all').plot(axes=ax[0:2, 0], spatial_colors=True, selectable=False, show=False)
 
-# perform regression on the evoked blink response
-model_evoked = mne.preprocessing.EOGRegression(picks='eeg', picks_artifact='eog').fit(train_evoked)
-
 raw.plot(scalings=dict(eeg=20e-6, eog=150e-6), show=False, block=False, remove_dc=True, title="before (training)", highpass=0.3, lowpass=40, events=eog_events)
 
-# simulate onlineness
-cnt = 0 # starting sample
-corrected_data_array = np.zeros((6, training_data_array.shape[1]))
-window_size = 1 # apply unchanged weights every n samples 
-while cnt+window_size <= training_data_array.shape[1]: # at every sample, apply the regression 
-    incoming_data = training_data_array[:, cnt:cnt+window_size]
-    corrected_data = incoming_data.copy()
-    corrected_data[0:4] = incoming_data[0:4] - model_evoked.coef_ @ incoming_data[4:6]
-    # test_data_array[:, cnt:cnt+window_size] = corrected_data
-    # t = [x / eegSignals[0].fs for x in list(range(cnt, cnt+window_size))]
-    
-    corrected_data_array[0:, cnt:cnt+window_size] = corrected_data
 
-    cnt += window_size # sample
-
-raw_clean = mne.io.RawArray(corrected_data_array, mne.create_info(ch_names, eegSignals[0].fs, ch_types=ch_types))
-raw_clean.load_data()
-raw_clean.set_eeg_reference('average')
-raw_clean.set_montage(mne.channels.make_standard_montage("standard_1005"))
-
-train_clean_evoked = mne.preprocessing.create_eog_epochs(raw_clean, baseline=(-1, -0.5), tmin=-1, tmax=0.5)
-train_clean_evoked.average('all').plot(axes=ax[0:2, 1], spatial_colors=True, selectable=False, show=False)
-
-mfig, ax = raw_custom_plot(raw, mfig, ax, [2, 0], times= [5, 25], mean=False, events=eog_events)
-mfig, ax = raw_custom_plot(raw_clean, mfig, ax, [2, 1], times= [5, 25], mean=False, events=eog_events)
+eog_projs, _ = mne.preprocessing.compute_proj_eog(raw, n_grad=1, n_mag=1, n_eeg=1, reject=None,
+                                no_proj=True)
+mfig, ax = raw_custom_plot(raw, mfig, ax, [2, 0], times= [5,25], mean=False, events=eog_events)
+raw_clean = raw.copy().add_proj(eog_projs).apply_proj()
+mfig, ax = raw_custom_plot(raw_clean, mfig, ax, [2, 1], times= [5,25], mean=False, events=eog_events)
 
 raw_clean.plot(scalings=dict(eeg=20e-6, eog=150e-6), show=False, block=False, remove_dc=True, title="after (training)", highpass=0.3, lowpass=40, events=eog_events)
 
-# Do the same for test set 
+train_clean_epochs = mne.preprocessing.create_eog_epochs(raw_clean, baseline=(-1, -0.5), tmin=-1, tmax=0.5)
+train_clean_evoked = train_clean_epochs.average('all')
+train_clean_epochs.average('all').plot(axes=ax[0:2, 1], spatial_colors=True, selectable=False, show=False)
+
 raw = mne.io.RawArray(test_data_array, mne.create_info(ch_names, eegSignals[0].fs, ch_types=ch_types))
 raw.load_data()
 raw.set_eeg_reference('average')
@@ -186,48 +166,24 @@ raw.set_montage(mne.channels.make_standard_montage("standard_1005"))
 # test set data should be filtered because of the insane drifts
 raw = raw.filter(2, 40)
 
-test_evoked = mne.preprocessing.create_eog_epochs(raw, baseline=(-1, -0.5), tmin=-1, tmax=0.5)
+test_epochs = mne.preprocessing.create_eog_epochs(raw, baseline=(-1, -0.5), tmin=-1, tmax=0.5)
+test_evoked = test_epochs.average('all')
 eog_events = mne.preprocessing.find_eog_events(raw, thresh=35e-6)
-test_evoked.average('all').plot(axes=ax[3:5, 0], spatial_colors=True, selectable=False, show=False)
+test_epochs.average('all').plot(axes=ax[3:5, 0], spatial_colors=True, selectable=False, show=False)
 
-raw.plot(scalings=dict(eeg=20e-6, eog=150e-6), show=False, block=False, remove_dc=True, title="before (testing)", highpass=0.3, lowpass=40, events=eog_events)
-
-# simulate onlineness
-cnt = 0 # starting sample
-corrected_data_array = np.zeros((6, test_data_array.shape[1]))
-window_size = 1 # apply unchanged weights every n samples 
-online_eval_times = [] 
-while cnt+window_size <= test_data_array.shape[1]: # at every sample, apply the regression 
-    start = time.time()
-    incoming_data = test_data_array[:, cnt:cnt+window_size]
-    corrected_data = incoming_data.copy()
-    corrected_data[0:4] = incoming_data[0:4] - model_evoked.coef_ @ incoming_data[4:6]
-
-    
-    corrected_data_array[0:, cnt:cnt+window_size] = corrected_data
-
-    cnt += window_size # sample
-    end = time.time()
-    online_eval_times.append(end - start)
-
-raw_clean = mne.io.RawArray(corrected_data_array, mne.create_info(ch_names, eegSignals[0].fs, ch_types=ch_types))
-raw_clean.load_data()
-raw_clean.set_eeg_reference('average')
-raw_clean.set_montage(mne.channels.make_standard_montage("standard_1005"))
-
-train_clean_evoked = mne.preprocessing.create_eog_epochs(raw_clean, baseline=(-1, -0.5), tmin=-1, tmax=0.5)
-train_clean_evoked.average('all').plot(axes=ax[3:5, 1], spatial_colors=True, selectable=False, show=False)
-
+# eog_projs, _ = mne.preprocessing.compute_proj_eog(raw, n_grad=1, n_mag=1, n_eeg=1, reject=None,
+#                               no_proj=True)
 mfig, ax = raw_custom_plot(raw, mfig, ax, [5, 0], times= [398, 418], mean=False, events=eog_events)
+raw_clean = raw.copy().add_proj(eog_projs).apply_proj()
 mfig, ax = raw_custom_plot(raw_clean, mfig, ax, [5, 1], times= [398, 418], mean=False, events=eog_events)
+
+
+fig = raw.plot(scalings=dict(eeg=20e-6, eog=150e-6), show=False, block=False, remove_dc=True, title="before (testing)", highpass=0.3, lowpass=40, events=eog_events)
+
+
+test_clean_evoked = mne.preprocessing.create_eog_epochs(raw_clean, baseline=(-1, -0.5), tmin=-1, tmax=0.5)
+test_clean_evoked.average('all').plot(axes=ax[3:5, 1], spatial_colors=True, selectable=False, show=False)
 
 mfig.show()
 
-print("average time taken to process one incoming sample: ", np.mean(online_eval_times), " seconds")
-
 fig = raw_clean.plot(scalings=dict(eeg=20e-6, eog=150e-6), show=True, block=True, remove_dc=True, title="after (testing)", highpass=0.3, lowpass=40, events=eog_events)
-
-# animation 
-# top: incoming / displayed data 
-# bottom: corrected / saved data 
-
