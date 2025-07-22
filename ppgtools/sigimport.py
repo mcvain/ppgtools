@@ -52,7 +52,7 @@ def importTattooData(directory, filename):
     directory += "/" + filename
     
     devices = [name for name in os.listdir(directory) if os.path.isdir(os.path.join(directory, name))]
-    print(devices)
+    print (devices)
     
     sessionData = {}
     
@@ -66,7 +66,7 @@ def importTattooData(directory, filename):
     for d in sessionData.keys():
         print(d)
         
-    return sessionData
+    return sessionData, devices
         
 
 def importEventMarkers(loc):
@@ -96,7 +96,8 @@ def importEventMarkers(loc):
         for i in range (0, len(data)):
             out.append(EventMarker(float(data[i][0]), data[i][1]))
         return out               
-
+            
+                
         print("Sucessfully loaded event markers")
     except FileNotFoundError:
         print("No event markers found")
@@ -113,7 +114,9 @@ def importTAT(loc):
         
     file_size = os.path.getsize(loc)
     print("File \'" + str(loc) + "\' size: " + str(file_size / 1000) + " kB")
-
+        
+    
+        
     total_bytes_read = 0        
     
     i = 1
@@ -210,7 +213,7 @@ def importTAT(loc):
             
     
             total_bytes_read += bytes_to_read
-            checkPercent(total_bytes_read, file_size)  
+            checkPercent(total_bytes_read, file_size)
                
 def importBIN(loc):
     '''
@@ -332,6 +335,7 @@ def importBIN(loc):
     
             total_bytes_read += bytes_to_read
             checkPercent(total_bytes_read, file_size)
+        file.read(6)
             
 def importCSV(loc, num_channels, starting_row = 0, starting_col = 0):
     '''

@@ -349,7 +349,7 @@ class BioSignal:
         
         plt.title(self.name)
         
-    def plot_stft(self, win_len = 1):
+    def plot_stft(self, win_len = 5):
         x = self.data
         nperseg = win_len * self.fs
         
@@ -359,7 +359,6 @@ class BioSignal:
         plt.title('STFT Magnitude')
         plt.ylabel('Frequency [Hz]')
         plt.xlabel('Time [sec]')
-        plt.ylim([0, 20])
         plt.show()
         
     def convert_Si7050(self):
