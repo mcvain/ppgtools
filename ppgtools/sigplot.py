@@ -25,7 +25,8 @@ def plot_biosignals(signals, event_markers = None, points_of_interest = None, in
         If a signal does not need regions highlighted, input an empty inner array.
     Returns
     -------
-    None.
+    fig, axs : matplotlib Figure and Axes
+        The figure and axes objects for further modification.
 
     '''
     
@@ -86,9 +87,10 @@ def plot_biosignals(signals, event_markers = None, points_of_interest = None, in
             axs[len(signals)].spines['bottom'].set_visible(False)
             axs[len(signals)].spines['left'].set_visible(False)
 
-    fig.legend()
+    # fig.legend()
     plt.xlabel("Time [s]")
     #plt.tight_layout()
+    return fig, axs
 
 def bland_altman_plot(ref_data, extracted_data, units = '', *args, **kwargs):
     for i in range(len(extracted_data)):
