@@ -363,11 +363,11 @@ class BioSignal:
         
     def convert_Si7050(self):
         self.data = self.data * 175.72 / 65536 - 46.85
-        self.units = '\u00b0C'
+        self.units = 'Temperature [C]'
         
     def convert_TMP117(self):
         self.data = self.data * 7.8125 / 1000
-        self.units = '\u00b0C'
+        self.units = 'Temperature [C]'
 
     def shift(self, delay_amount, change_self = True):
         '''

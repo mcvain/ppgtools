@@ -2,6 +2,7 @@ from openpyxl import Workbook, load_workbook
 import csv
 import os
 import numpy as np
+import struct
 from ppgtools.biosignal import BioSignal
 import xlrd
 import copy
@@ -207,8 +208,14 @@ def importTAT(loc):
                 print("Sucessfully loaded .tat file.\n")
                 return signals
             
-            
-            data_buffer[j].append(int.from_bytes(byte, signals[j].getEndian(), signed = signals[j].signed))
+            if signals[j].name == "HR" and bytes_to_read == 4:
+                endian = signals[j].getEndian()
+                fmt = '>f'
+                if endian == 'little':
+                    fmt = '<f'
+                data_buffer[j].append(struct.unpack(fmt, byte)[0])
+            else:
+                data_buffer[j].append(int.from_bytes(byte, signals[j].getEndian(), signed = signals[j].signed))
             #signals[j].data.append(int.from_bytes(byte, signals[j].getEndian(), signed = signals[j].signed))
             
     
